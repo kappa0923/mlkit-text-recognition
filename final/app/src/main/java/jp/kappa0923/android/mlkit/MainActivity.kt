@@ -31,8 +31,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.support.v7.app.AppCompatActivity
-import android.view.MenuItem
 import android.widget.Toast
+import com.google.firebase.ml.naturallanguage.FirebaseNaturalLanguage
+import com.google.firebase.ml.naturallanguage.translate.FirebaseTranslateLanguage
+import com.google.firebase.ml.naturallanguage.translate.FirebaseTranslatorOptions
+import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.google.firebase.ml.vision.text.FirebaseVisionText
 import kotlinx.android.synthetic.main.activity_main.*
@@ -54,19 +57,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         captureImageFab.setOnClickListener {
+            setImageViewSize()
             showCameraWithPermissionCheck()
-        }
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.add_photo -> {
-//                graphicOverlay.clear()
-                setImageViewSize()
-                showCameraWithPermissionCheck()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
         }
     }
 
@@ -77,7 +69,12 @@ class MainActivity : AppCompatActivity() {
                     val capturePhoto = getScaledBitmap()
                     setRecognizePhotoToView(capturePhoto)
 
-                    // TODO : Run text recognition or face detection.
+                    // オーバーレイ表示のスケールを修正
+                    val scaleX = (imageMaxWidth.toFloat() / capturePhoto.width)
+                    val scaleY = (imageMaxHeight.toFloat() / capturePhoto.height)
+                    graphicOverlay.scale(scaleX, scaleY)
+
+                    // 画像から文字認識
                     runTextRecognition(capturePhoto)
                 } else {
                     showToast("Camera canceled")
@@ -135,7 +132,9 @@ class MainActivity : AppCompatActivity() {
      * @param photo 対象の画像
      */
     private fun setRecognizePhotoToView(photo: Bitmap) {
-        imageView.setImageBitmap(photo)
+        runOnUiThread {
+            imageView.setImageBitmap(photo)
+        }
     }
 
     /**
@@ -143,15 +142,18 @@ class MainActivity : AppCompatActivity() {
      * @param recognitionTarget 認識対象の画像
      */
     private fun runTextRecognition(recognitionTarget: Bitmap) {
-//        val image = FirebaseVisionImage.fromBitmap(recognitionTarget)
-//        val detector = FirebaseVision.getInstance().visionTextDetector
-//        detector.detectInImage(image)
-//                .addOnSuccessListener { texts ->
-//                    processTextRecognitionResult(texts)
-//                }
-//                .addOnFailureListener { e ->
-//                    e.printStackTrace()
-//                }
+        // TODO : 05 解析用オブジェクト生成
+        val image = FirebaseVisionImage.fromBitmap(recognitionTarget)
+
+        // TODO : 05 文字認識
+        val detector = FirebaseVision.getInstance().onDeviceTextRecognizer
+        detector.processImage(image)
+                .addOnSuccessListener {
+                    processTextRecognitionResult(it)
+                }
+                .addOnFailureListener { e ->
+                    e.printStackTrace()
+                }
     }
 
     /**
@@ -159,25 +161,67 @@ class MainActivity : AppCompatActivity() {
      * @param texts 認識結果のテキスト情報
      */
     private fun processTextRecognitionResult(texts: FirebaseVisionText) {
-//        val blocks = texts.blocks
-//        if (blocks.size == 0) {
-//            showToast("Text not found")
-//            return
-//        }
-//
-//        graphicOverlay.clear()
-//
-//        for (i in blocks.indices) {
-//            val lines = blocks[i].lines
-//            for (j in lines.indices) {
-//                val elements = lines[j].elements
-//                for (k in elements.indices) {
-//                    val textGraphic = TextGraphic(graphicOverlay, elements[k])
-//
-//                    graphicOverlay.add(textGraphic)
-//                }
-//            }
-//        }
+        val blocks = texts.textBlocks
+        if (blocks.size == 0) {
+            showToast("Text not found")
+            return
+        }
+
+        graphicOverlay.clear()
+
+        // TODO : 05 認識したテキストを表示する
+        for (block in blocks) {
+//            showTextBlock(block)
+            identifyLanguage(block)
+        }
+    }
+
+    /**
+     * 言語を識別する
+     * @param block 識別するテキスト
+     */
+    private fun identifyLanguage(block: FirebaseVisionText.TextBlock) {
+        // TODO : 07 言語の識別
+        val languageIdentifier = FirebaseNaturalLanguage.getInstance().languageIdentification
+        languageIdentifier.identifyLanguage(block.text)
+                .addOnSuccessListener { language ->
+//                    showToast(language)
+                    translateToJapanese(block, language)
+                }
+    }
+
+    /**
+     * テキストを日本語に翻訳する
+     * @param block 翻訳する文章
+     * @param language 翻訳する前の言語
+     */
+    private fun translateToJapanese(block: FirebaseVisionText.TextBlock, language: String) {
+        val sourceLanguageCode = FirebaseTranslateLanguage.languageForLanguageCode(language)
+                ?: FirebaseTranslateLanguage.EN
+
+        val options = FirebaseTranslatorOptions.Builder()
+                .setSourceLanguage(sourceLanguageCode)
+                .setTargetLanguage(FirebaseTranslateLanguage.JA)
+                .build()
+
+        // TODO : 08 テキストを翻訳する
+        val translator = FirebaseNaturalLanguage.getInstance().getTranslator(options)
+        translator.downloadModelIfNeeded()
+                .addOnSuccessListener {
+                    translator.translate(block.text)
+                            .addOnSuccessListener { translatedText ->
+                                showTextBlock(FirebaseVisionText.TextBlock(translatedText, block.boundingBox, block.recognizedLanguages, block.lines, block.confidence))
+                            }
+                }
+    }
+
+    /**
+     * TextBlockを画面上に表示する
+     * @param block 表示するBlock
+     */
+    private fun showTextBlock(block: FirebaseVisionText.TextBlock) {
+        val textGraphic = TextGraphic(graphicOverlay, block)
+        graphicOverlay.add(textGraphic)
     }
 
     private fun setImageViewSize() {

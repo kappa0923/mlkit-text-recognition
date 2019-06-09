@@ -123,6 +123,11 @@ class GraphicOverlay(context: Context, attrs: AttributeSet) : View(context, attr
         translateY = y
     }
 
+    fun scale(x: Float, y: Float) {
+        widthScaleFactor = x
+        heightScaleFactor = y
+    }
+
     /**
      * カスタムオブジェクトを描画する
      * @param canvas 描画先のCanvas
@@ -130,7 +135,8 @@ class GraphicOverlay(context: Context, attrs: AttributeSet) : View(context, attr
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        canvas.translate(translateX, translateY)
+//        canvas.translate(translateX, translateY)
+        canvas.scale(widthScaleFactor, heightScaleFactor)
 
         synchronized(lock) {
             if (previewWidth != 0 && previewHeight != 0) {

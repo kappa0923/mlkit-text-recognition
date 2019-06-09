@@ -34,7 +34,7 @@ import com.google.firebase.ml.vision.text.FirebaseVisionText
 /**
  * 認識したテキストと矩形をオーバーレイで描画するためのクラス
  */
-class TextGraphic internal constructor(overlay: GraphicOverlay, private val element: FirebaseVisionText.Element) : Graphic(overlay) {
+class TextGraphic internal constructor(overlay: GraphicOverlay, private val block: FirebaseVisionText.TextBlock) : Graphic(overlay) {
     companion object {
         private const val TEXT_COLOR = Color.RED
         private const val TEXT_SIZE = 50.0f
@@ -60,11 +60,11 @@ class TextGraphic internal constructor(overlay: GraphicOverlay, private val elem
      */
     override fun draw(canvas: Canvas) {
         // Draws the bounding box around the TextBlock.
-        val rect = RectF(element.boundingBox)
+        val rect = RectF(block.boundingBox)
         canvas.drawRect(rect, rectPaint)
 
         // Renders the text at the bottom of the box.
-        canvas.drawText(element.text, rect.left, rect.bottom, textPaint)
+        canvas.drawText(block.text, rect.left, rect.bottom, textPaint)
     }
 
 }
